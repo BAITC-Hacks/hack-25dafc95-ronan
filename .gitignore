@@ -7,3 +7,8 @@ coverage/
 .tools/
 .source/
 node-v*-win-x64.zip
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.cache/
+front/tsconfig.tsbuildinfo
