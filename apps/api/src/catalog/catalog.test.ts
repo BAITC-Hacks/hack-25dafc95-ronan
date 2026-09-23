@@ -49,6 +49,17 @@ describe('fixture catalog', () => {
     } finally { await app.close(); }
   });
 
+  it('lists inspected products for the frontend without claiming full coverage', async () => {
+    const app = await buildApp(config, fixture);
+    try {
+      const response = await app.inject({ method: 'GET', url: '/api/products' });
+      expect(response.statusCode).toBe(200);
+      expect(response.json().items).toHaveLength(21);
+      expect(response.json().items.find((entry: { product: { id: number } }) => entry.product.id === 900000001).product.provenance.source).toBe('synthetic');
+      expect(response.json().coverage.complete).toBe(false);
+    } finally { await app.close(); }
+  });
+
   it('returns structured errors for invalid input and uncovered products', async () => {
     const app = await buildApp(config, fixture);
     try {

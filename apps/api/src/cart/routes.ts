@@ -80,6 +80,14 @@ export async function registerCartRoutes(app: FastifyInstance, config: Config, s
     return cartStore.getCart(sessionId);
   });
 
+  api.get('/api/cart/proposals/:id/status', { schema: { params: idParams, response: { 200: z.object({
+    status: z.enum(['applied', 'not-applied', 'unknown']), cart: cartSchema, cart_mode: z.literal('demo'),
+  }) } } }, async (request) => {
+    const cartStore = storeOrError(config, store);
+    const sessionId = await sessionFor(request, cartStore);
+    return cartStore.getProposalStatus(sessionId, request.params.id);
+  });
+
   api.post('/api/cart/proposals', { schema: { body: proposalBody, response: { 200: proposalSchema } } }, async (request) => {
     origin(request, config);
     const cartStore = storeOrError(config, store);

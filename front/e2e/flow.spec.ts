@@ -94,8 +94,9 @@ test("retry without duplicated user message, unknown query, attachments and API 
   await expect(page.locator(".message").last()).toContainText(
     "Содержимое вашего файла не использовалось",
   );
+  await page.route("**/api/products", (route) => route.abort());
   await page.getByLabel("Источник данных").selectOption("api");
-  await expect(page.getByRole("alert")).toContainText("API не настроен");
+  await expect(page.getByRole("alert")).toBeVisible();
   await expect(page.locator(".product-card")).toHaveCount(0);
 });
 test("mobile panel, focus, cancellation, exact text consent and keyboard newline", async ({

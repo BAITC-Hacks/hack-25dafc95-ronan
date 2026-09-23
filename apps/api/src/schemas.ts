@@ -42,7 +42,7 @@ export const productResponse = z.object({
 });
 
 export const searchResponse = z.object({
-  items: z.array(z.object({ product: productResponse, match: z.enum(['exact_identifier', 'name']) })),
+  items: z.array(z.object({ product: productResponse, match: z.enum(['exact_identifier', 'name', 'visible_page']) })),
   coverage: z.object({
     complete: z.literal(false),
     inspected_pages: z.array(z.number().int()),

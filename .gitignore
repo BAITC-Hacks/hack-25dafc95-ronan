@@ -12,3 +12,6 @@ __pycache__/
 .pytest_cache/
 .cache/
 front/tsconfig.tsbuildinfo
+front/test-results/
+front/playwright-report/
+front/.test-build/

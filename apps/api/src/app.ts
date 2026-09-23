@@ -12,7 +12,7 @@ import { registerCartRoutes } from './cart/routes.js';
 import { MlCoreClient, fallbackQuery } from './ml/client.js';
 
 const idParams = z.object({ id: z.coerce.number().int().positive() });
-const searchQuery = z.object({ q: z.string().trim().min(1).max(100) });
+const searchQuery = z.object({ q: z.string().trim().min(1).max(100).optional() });
 
 export async function buildApp(config: Config, catalog: CatalogProvider, services: { cart?: PgDemoCartStore; ml?: MlCoreClient } = {}) {
   const app = Fastify({ logger: false }).withTypeProvider<ZodTypeProvider>();
@@ -49,7 +49,7 @@ export async function buildApp(config: Config, catalog: CatalogProvider, service
     const extras = await catalog.listExtras?.() ?? [];
     const candidates: CatalogRecord[] = page.items.map((raw) => detail && raw.id === detail.raw.id ? detail : { raw, source: page.source, fetchedAt: page.fetchedAt, detailAvailable: false });
     candidates.push(...extras);
-    const matches = candidates.map((record) => ({ record, result: productMatches(record.raw, request.query.q) }))
+    const matches = candidates.map((record) => ({ record, result: request.query.q ? productMatches(record.raw, request.query.q) : { rank: 0, match: 'visible_page' as const } }))
       .filter((entry) => entry.result !== null)
       .sort((a, b) => (a.result?.rank ?? 99) - (b.result?.rank ?? 99));
     const items = matches.map(({ record, result }) => ({

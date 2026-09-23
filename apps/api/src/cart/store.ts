@@ -73,6 +73,16 @@ export class PgDemoCartStore {
     finally { client.release(); }
   }
 
+  async getProposalStatus(sessionId: string, proposalId: string) {
+    const found = await this.pool.query<{ status: string; expires_at: Date }>(
+      'SELECT status,expires_at FROM demo_cart_proposals WHERE id=$1 AND session_id=$2', [proposalId, sessionId]);
+    const proposal = found.rows[0];
+    if (!proposal) throw new CartError('PROPOSAL_NOT_FOUND', 'Proposal is not owned by this session', 404);
+    const status: 'applied' | 'not-applied' | 'unknown' = proposal.status === 'consumed' ? 'applied'
+      : proposal.status === 'cancelled' || proposal.expires_at.getTime() <= Date.now() ? 'not-applied' : 'unknown';
+    return { status, cart: await this.getCart(sessionId), cart_mode: 'demo' as const };
+  }
+
   private async resolveLine(productId: number, storeId: number, requested: string): Promise<CartLine> {
     const qty = quantity(requested);
     const record = await this.catalog.getProduct(productId);

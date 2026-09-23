@@ -1,17 +1,17 @@
-# API-контракт команды — реализованный demo MVP v0.2
+# API-контракт команды — интегрированный demo MVP v0.3
 
 ## Реализованный HTTP-контракт
 
-Реализованы `GET /api/health`, `GET /api/products?q=...`, `GET /api/products/:id`,
+Реализованы `GET /api/health`, `GET /api/products` (с необязательным `q`), `GET /api/products/:id`,
 `POST /api/session`, `GET /api/cart`, `POST /api/cart/proposals`,
-`POST /api/cart/proposals/:id/confirm`, `POST /api/cart/proposals/:id/cancel`,
+`POST /api/cart/proposals/:id/confirm`, `GET /api/cart/proposals/:id/status`, `POST /api/cart/proposals/:id/cancel`,
 `GET /cart`, `POST /api/chat` и `GET /api/openapi.json`. Остальные маршруты в
 таблице ниже остаются проектом следующих этапов.
 
-Поиск возвращает `{ "items": [{ "product": ..., "match": "exact_identifier|name" }],
+Поиск возвращает `{ "items": [{ "product": ..., "match": "exact_identifier|name|visible_page" }],
 "coverage": { "complete": false, "inspected_pages": [2], "reported_count": 20,
 "note": "..." } }` в fixture-режиме. В live-режиме просматривается только текущая
-первая страница EKT. Пустой `items` не утверждает отсутствие товара в магазине.
+первая страница EKT. Без `q` возвращается просмотренная страница и synthetic-товар с `match=visible_page`; это не полный каталог. Пустой `items` не утверждает отсутствие товара в магазине.
 
 Карточка добавляет `cart_mode`, `detail_available`, `barcode` и
 `provenance.field_sources`. `price.currency` и `price.currency_source` пока `null`:
@@ -57,6 +57,8 @@ EKT неизвестны, только явно synthetic товар имеет 
 обслуживает минимальная страница Node для той же cookie. Повтор с тем же ключом
 и телом возвращает сохранённый ответ; другой ключ для consumed proposal не
 добавляет товар. `POST /api/cart/proposals/:id/cancel` отменяет active proposal.
+`GET /api/cart/proposals/:id/status` доступен только владельцу session cookie и
+возвращает `{ "status": "applied|not-applied|unknown", "cart": ..., "cart_mode": "demo" }` для сверки после неопределённого ответа confirm.
 При `CART_MODE=ekt` маршруты корзины возвращают 501
 `INTEGRATION_NOT_CONFIGURED`.
 
@@ -66,7 +68,15 @@ EKT неизвестны, только явно synthetic товар имеет 
 `catalog_complete: false`. Это read-only путь: он не создаёт предложение и не
 подтверждает корзину. Node вызывает Python по черновому контракту
 `docs/ML_CORE_CONTRACT.md`, если задан `ML_CORE_URL`; при сбое Python применяет
-локальный поиск. Контракт обмена с ML-участником ещё ожидает подтверждения.
+локальный поиск. Локальный Python HTTP-адаптер реализован и проверен; командное
+согласование контракта с ML-участником остаётся открытым.
+
+Frontend API-режим вызывает `/api/products`, `/api/products/:id`, `/api/chat`,
+`/api/session`, `/api/cart`, proposal и confirm с cookie одного origin через Vite proxy.
+После confirm открывает `/#/cart` и повторно читает ту же серверную корзину при
+обновлении страницы. Для proxy на `127.0.0.1:5173` у Node задаётся
+`ALLOWED_ORIGIN=http://127.0.0.1:5173`. Режим `api` хранится только в
+`sessionStorage`; session cookie остаётся HttpOnly, CSRF-токен — только в памяти JS.
 
 **Не документация существующего сервера EKT.** Маршруты этого документа принадлежат нашему backend. Нереализованные пункты ниже обозначены как проект следующих этапов.
 
@@ -100,7 +110,7 @@ EKT неизвестны, только явно synthetic товар имеет 
 | `GET /api/health` | Liveness, версия API без секретов | инфраструктура |
 | `GET /api/ready` | Готовность БД и обязательных модулей | инфраструктура |
 | `POST /api/session` | Создать/получить собственную анонимную сессию и CSRF token | frontend |
-| `GET /api/products?q=027228` | Поиск в локальном индексе | frontend / chat tools |
+| `GET /api/products?q=027228` или без `q` | Поиск или просмотр доступной страницы | frontend / chat tools |
 | `GET /api/products/:id` | Карточка с фактами, источниками и предупреждениями | frontend / chat tools |
 | `GET /api/products/:id/alternatives` | Проверенные кандидаты и причины/ограничения | frontend / chat tools |
 | `GET /api/policies?topic=delivery` | Утверждённые условия или отсутствие источника | frontend / chat tools |
@@ -108,6 +118,7 @@ EKT неизвестны, только явно synthetic товар имеет 
 | `GET /api/cart` | Только корзина текущей сессии | frontend / read-only tool |
 | `POST /api/cart/proposals` | Создать неизменяемое предложение, не меняя корзину | frontend / propose tool |
 | `POST /api/cart/proposals/:id/confirm` | Отдельное явное подтверждение владельца | пользователь через UI / серверный обработчик подтверждения |
+| `GET /api/cart/proposals/:id/status` | Сверка результата после неопределённого ответа confirm | frontend |
 | `POST /api/cart/proposals/:id/cancel` | Отменить предложение без изменения корзины | пользователь |
 | `POST /api/attachments` | Загрузить разрешённый файл своей сессии | frontend, поздний этап |
 | `GET /api/attachments/:id` | Статус обработки и извлечённые позиции владельца | frontend, поздний этап |

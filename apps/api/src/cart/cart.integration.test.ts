@@ -37,6 +37,8 @@ describe.skipIf(!databaseUrl)('demo cart with PostgreSQL', () => {
       const proposalId = proposal.json().proposal_id as string;
       const before = await app.inject({ method: 'GET', url: '/api/cart', headers: { cookie } });
       expect(before.json().items).toEqual([]);
+      const pending = await app.inject({ method: 'GET', url: `/api/cart/proposals/${proposalId}/status`, headers: { cookie } });
+      expect(pending.json().status).toBe('unknown');
 
       const otherSession = await app.inject({ method: 'POST', url: '/api/session', headers: { origin, host: 'localhost:8000' } });
       const foreign = await app.inject({ method: 'POST', url: `/api/cart/proposals/${proposalId}/confirm`,
@@ -54,6 +56,8 @@ describe.skipIf(!databaseUrl)('demo cart with PostgreSQL', () => {
       const after = await app.inject({ method: 'GET', url: '/api/cart', headers: { cookie } });
       expect(after.json().items[0].quantity).toBe('2');
       expect(after.json().version).toBe(1);
+      const applied = await app.inject({ method: 'GET', url: `/api/cart/proposals/${proposalId}/status`, headers: { cookie } });
+      expect(applied.json().status).toBe('applied');
       const page = await app.inject({ method: 'GET', url: '/cart', headers: { cookie } });
       expect(page.statusCode).toBe(200);
       expect(page.body).toContain('Демо-корзина');

@@ -1,4 +1,5 @@
 import { applyConfirmed, emptyCart, quote } from "./cartEngine";
+export { createApiSource } from "./apiSource";
 import { catalog } from "./catalog";
 import type { Cart, DataSource, MutationResult } from "./types";
 const storageKey = "ekt-demo-cart-v1";
@@ -136,23 +137,5 @@ export function createDemoSource(): DataSource {
       save();
       return cart;
     },
-  };
-}
-/** Supply a team-owned adapter here. No fallback to demo is permitted in API mode. */
-export function createApiSource(): DataSource {
-  const unavailable = async (): Promise<never> => {
-    throw new Error(
-      "API не настроен. Команда должна предоставить адаптер, механизм авторизации и адрес корзины.",
-    );
-  };
-  return {
-    mode: "api",
-    cartUrl: "",
-    getCatalog: unavailable,
-    getCart: unavailable,
-    chat: unavailable,
-    propose: unavailable,
-    commit: unavailable,
-    reconcile: unavailable,
   };
 }
