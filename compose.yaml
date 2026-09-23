@@ -1,0 +1,13 @@
+services:
+  db:
+    image: postgres:17
+    environment:
+      POSTGRES_USER: ekt
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD locally}
+      POSTGRES_DB: ekt
+    ports:
+      - "5432:5432"
+    volumes:
+      - ekt_pgdata:/var/lib/postgresql/data
+volumes:
+  ekt_pgdata:
