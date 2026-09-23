@@ -5,7 +5,7 @@ export default defineConfig({
   workers: 1,
   use: {
     baseURL: "http://127.0.0.1:5173",
-    channel: "chrome",
+    channel: process.env.E2E_BROWSER_CHANNEL || undefined,
     headless: true,
     screenshot: "only-on-failure",
   },

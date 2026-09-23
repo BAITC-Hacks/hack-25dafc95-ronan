@@ -1,0 +1,26 @@
+{
+  "kind": "user_provided_api_snapshots",
+  "prepared_date": "2026-09-23",
+  "upstream_fetched_at": null,
+  "live_verified": false,
+  "catalog_complete": false,
+  "files": [
+    {
+      "path": "ekt-products-page2.json",
+      "source": "User attachment Pasted markdown(2).md",
+      "record_count": 20
+    },
+    {
+      "path": "ekt-product-515291.json",
+      "source": "JSON pasted in user message",
+      "record_count": 1
+    }
+  ],
+  "notes": [
+    "No credentials included.",
+    "Use snapshots only in clearly marked fixture mode.",
+    "Missing details do not imply zero stock.",
+    "No synthetic product or policy is included in this package yet.",
+    "Preserve the unresolved 160A/250A discrepancy; do not correct either field."
+  ]
+}

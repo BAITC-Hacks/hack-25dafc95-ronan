@@ -1,0 +1,18 @@
+{
+  "kind": "synthetic_demo_only",
+  "products": [
+    {
+      "id": 900000001,
+      "article": "DEMO_001",
+      "name": "Демо автоматический выключатель 3P 16 А",
+      "price": "1000",
+      "currency": "KZT",
+      "unit": "шт",
+      "min_quantity": "1",
+      "quantity_step": "1",
+      "stores": [{ "id": 24, "name": "Демо-склад Астана", "quantity": "8", "sellable": true }],
+      "source": "synthetic",
+      "purpose": "Проверка протокола демо-корзины; не товар EKT"
+    }
+  ]
+}

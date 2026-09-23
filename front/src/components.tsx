@@ -54,7 +54,7 @@ export function ProductCard({
   onPropose: (i: Intent) => void;
   disabled: boolean;
 }) {
-  const [warehouse, setWarehouse] = useState(p.stocks[0].warehouse);
+  const [warehouse, setWarehouse] = useState(p.stocks[0]?.warehouse ?? "Склад не указан");
   const [qty, setQty] = useState(String(p.min));
   const stock = p.stocks.find((s) => s.warehouse === warehouse)?.quantity;
   return (
@@ -124,7 +124,7 @@ export function ProductCard({
         <button
           className="primary"
           disabled={
-            disabled || stock == null || stock === 0 || p.price === null
+            disabled || p.canPurchase === false || stock == null || stock === 0 || p.price === null
           }
           onClick={() =>
             onPropose({
@@ -139,7 +139,9 @@ export function ProductCard({
         </button>
       </div>
       <p className="micro">
-        Мин. {p.min} {p.unit} · шаг {p.step} {p.unit}. Далее — подтверждение.
+        {p.canPurchase === false
+          ? "Правила продажи и единица товара не подтверждены; добавление недоступно."
+          : `Мин. ${p.min} ${p.unit} · шаг ${p.step} ${p.unit}. Далее — подтверждение.`}
       </p>
     </article>
   );
@@ -174,6 +176,7 @@ export function CartLine({
         <input
           id={`qty-${keyOf(line)}`}
           type="number"
+          disabled={disabled}
           min={p.min}
           step={p.step}
           value={qty}

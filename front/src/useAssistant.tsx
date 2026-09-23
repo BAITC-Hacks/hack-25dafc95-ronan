@@ -29,7 +29,13 @@ type Message = {
   success?: boolean;
 };
 export function useAssistant(initialSource?: DataSource) {
-  const initialMode = import.meta.env.VITE_DATA_MODE === "api" ? "api" : "demo";
+  const initialMode = (() => {
+    try {
+      const selected = sessionStorage.getItem("ekt-data-mode");
+      if (selected === "api" || selected === "demo") return selected;
+    } catch { /* Browsers may disable storage. */ }
+    return import.meta.env.VITE_DATA_MODE === "api" ? "api" : "demo";
+  })();
   const [source, setSource] = useState<DataSource>(
     () =>
       initialSource ??
@@ -343,6 +349,8 @@ export function useAssistant(initialSource?: DataSource) {
   }
   function switchMode(mode: string) {
     if (locked || sending) return;
+    try { sessionStorage.setItem("ekt-data-mode", mode === "api" ? "api" : "demo"); }
+    catch { /* The current page can still switch mode. */ }
     setSource(mode === "api" ? createApiSource() : createDemoSource());
     setMessages([]);
     setProposal(null);
@@ -406,7 +414,7 @@ export function useAssistant(initialSource?: DataSource) {
                 p={p}
                 line={l}
                 onPropose={propose}
-                disabled={locked || loading}
+                disabled={locked || loading || source.mode === "api"}
               />
             ) : (
               <p key={keyOf(l)}>Данные товара {l.productId} недоступны.</p>
@@ -427,6 +435,9 @@ export function useAssistant(initialSource?: DataSource) {
         )}
       </div>
       <div className="cart-bottom">
+        {source.mode === "api" && (
+          <p className="micro">Изменение и удаление позиций через API пока не подключены.</p>
+        )}
         <div className="cart-sum">
           <span>Итого</span>
           <strong>{money(total)}</strong>

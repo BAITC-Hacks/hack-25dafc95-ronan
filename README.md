@@ -1,59 +1,69 @@
-# hack-25dafc95-ronan
+# EKT Assistant — backend demo MVP
 
-Hackathon team repository for Ronan.
+Демо-MVP HackAlem AI: Node backend для каталога и отдельной демо-корзины, React frontend команды и локальный Python `ml_core` для ранжирования. Это не интеграция записи в корзину EKT.
 
-## `ml_core` catalog module
+## Рабочий путь
 
-`ml_core` is the dependency-light catalog/retrieval layer for the EKT chat
-assistant. It uses Python's standard library, reads HTTP Basic Auth credentials
-from `EKT_API_USER` and `EKT_API_PASS`, and never stores credentials in the
-repository. Copy `.env.example` to your local `.env` (which is ignored), then
-fill in the credentials. `python-dotenv` loads that file automatically when
-`ml_core.catalog` is imported; explicitly exported environment variables still
-take precedence.
+`GET /api/products?q=DEMO_001` → `GET /api/products/900000001` → `POST /api/session` → `POST /api/cart/proposals` → отдельный `POST /api/cart/proposals/:id/confirm` → `GET /api/cart` или frontend `/#/cart` с той же cookie. Создание предложения не меняет корзину. Повтор того же confirm не добавляет товар дважды. Node `/cart` остаётся простой проверочной страницей той же демо-корзины.
 
-```python
-from ml_core import (
-    PendingAction,
-    find_alternatives,
-    get_product,
-    initialize_catalog,
-    refresh_catalog,
-    search_products,
-)
+Демо-товар лежит отдельно в `samples/synthetic/demo-products.json` и помечен `source=synthetic`. Только у него заданы demo-единица, цена, остаток и правило количества. Исходный товар EKT 515291 нельзя добавить: неизвестны его подтверждённые правила продажи; API возвращает `PURCHASE_RULES_UNKNOWN`. `CART_MODE=ekt` возвращает 501 `INTEGRATION_NOT_CONFIGURED`.
 
-# Call once from FastAPI's lifespan/startup hook. It loads .cache/ekt_catalog.json
-# and fetches all /products pages plus /products/detail?id=... only when no cache exists.
-initialize_catalog()
+Каталог сохраняет исходный JSON отдельно от нормализованных колонок PostgreSQL. Снимки в `samples/` не являются текущими данными EKT. У 515291 сохраняются `200300285_`, `027228`, опубликованные остатки 23 и 8 на raw-складе 24 и предупреждение `SPEC_CONFLICT` для 160 А / 250 А. У list-only товаров остаток `null`, а `count=20` не объявляется размером каталога. `RECOMMEND` не используется как список аналогов.
 
-product = get_product("ARTICLE-123")
-matches = search_products("16A 230V circuit breaker")
-alternatives = find_alternatives("ARTICLE-123")  # up to 3 when that SKU is out of stock
+`POST /api/chat` — минимальный read-only путь. Node при заданном `ML_CORE_URL` вызывает Python HTTP-адаптер по `docs/ML_CORE_CONTRACT.md` для разбора запроса и ранжирования ID. Node проверяет, что ID входят в выбранных кандидатов, и берёт карточки, цены и остатки только из каталога. При недоступном Python применяет локальный поиск; `GET /api/products` работает независимо. Python не получает cookie, CSRF token и право менять корзину. Локальный вызов проверен; командное согласование границы с ML-участником остаётся открытым.
 
-# Invoke manually from an admin job/endpoint to re-fetch and atomically replace the cache.
-refresh_catalog()
+Публичные маршруты и JSON описаны в `docs/API_CONTRACT.md` и `/api/openapi.json`. API-адаптер frontend подключён без изменения дизайна и локального демо-режима. API-режим выбирается в верхней полосе, открывает корзину по `/#/cart` и сохраняется в пределах вкладки после обновления страницы.
 
-# Development-only: fetch the first 25 products concurrently without replacing
-# the full on-disk cache.
-initialize_catalog(limit=25)
+## Локальный запуск без Docker
+
+Нужны Node.js 24 LTS, Python 3.12+ и PostgreSQL. Из корня репозитория:
+
+```powershell
+npm ci
+if (!(Test-Path .env)) { Copy-Item .env.example .env }
+# Укажите свои значения в .env; файл игнорируется Git.
+npm run db:migrate
+npm run db:seed-fixtures
+npm run dev:api
 ```
 
-`Product` contains the normalized SKU, name, category, key specifications,
-certificate URL, price, warehouse stock, and availability. `find_alternatives`
-returns `ProductAlternative(product, score, reason)` values ranked by shared
-specification similarity (75%) and price similarity (25%). Runtime lookups use
-the in-memory cache rather than the live catalog API.
+В отдельном терминале для Python: `python -m pip install -r requirements.txt`, затем `python -m ml_core.service`. В `.env` Node задайте `ML_CORE_URL=http://127.0.0.1:8100`. Для frontend выполните `cd front`, `npm ci`, `npm run dev` или `npm run build` и `npm run preview`. Для локального Vite proxy добавьте в корневой `.env` `ALLOWED_ORIGIN=http://127.0.0.1:5173`; откройте `http://127.0.0.1:5173` и выберите режим `API`. Все значения `.env` локальны; файл игнорируется Git.
 
-For state-changing actions, use the server-side confirm gate; do not let the
-model execute a proposal directly:
+Сервер слушает `http://localhost:8000`. Node автоматически читает корневой `.env`, если он есть. Для текущей локальной проверки использованы `CATALOG_MODE=fixture`, `CART_MODE=demo`, `AI_MODE=stub`, `PORT=8000` и `DATABASE_URL` для локальной базы `ekt_assistant`; пароль не помещён в репозиторий. Установить соединение можно через настроенный локальный PostgreSQL. Если ему нужен пароль, храните его только в `.env` или локальном хранилище секретов. `TEST_DATABASE_URL` нужен только для интеграционных тестов в отдельной БД. `ML_CORE_URL` необязателен. Реальные EKT credentials нужны только при `CATALOG_MODE=live` и не проверялись.
 
-```python
-gate = PendingAction()
-gate.propose(session_id, {"action": "add_to_cart", "sku": "ARTICLE-123", "qty": 2})
+Для браузерных мутаций нужен `Origin` того же origin, session cookie из `POST /api/session` и `X-CSRF-Token` из его ответа. Confirm дополнительно требует уникальный `Idempotency-Key`. Session cookie имеет `HttpOnly`, `SameSite=Lax`, а в production — `Secure`. Frontend должен вызывать API через тот же origin или согласованный proxy. Не передавайте cookie/token в Python.
 
-# When the *next raw user message* arrives:
-gate.record_user_message(session_id, user_text)
-action_to_execute = gate.confirm(session_id)  # action only for explicit yes/да; always consumes state
+## Проверки
+
+```powershell
+npm run lint
+npm run typecheck
+npm test
+npm run build
+# Только с отдельной тестовой БД и TEST_DATABASE_URL:
+npm run test:integration
 ```
 
-Run the isolated tests with `python -m pytest`.
+На локальном PostgreSQL выполнены миграции 001/002 и загрузка fixtures в `ekt_assistant`: 20 товаров, одна detail-карточка. Через HTTP проверены поиск `027228`, карточка 515291, чат с Python (`ml_status=ok`) и `SPEC_CONFLICT`. На Node.js 24.21.0 прошли `npm run lint`, `npm run typecheck`, `npm test` (10 offline-тестов; 2 DB-теста пропущены без `TEST_DATABASE_URL`), `npm run build` и `npm run test:integration` (2 PostgreSQL-теста в отдельной `ekt_demo_mvp_test`). Python `pytest`: 9 тестов. Frontend: `npm test` (10 тестов), `npm run build` (включает TypeScript), Playwright demo suite — 9 пройдено, API-тест пропущен без `E2E_API`. Отдельный `front/e2e/api-integration.spec.ts` прошёл с реальными Node, Python, PostgreSQL и Chromium: поиск → карточка → предложение (корзина ещё пуста) → confirm → `/#/cart` → обновление той же страницы. В frontend нет отдельного lint script; production-сборка проверяет TypeScript.
+
+Пример ключевых полей `GET /api/products/515291`:
+
+```json
+{
+  "id": 515291,
+  "article": "200300285_",
+  "supplier_article": "027228",
+  "price": { "amount": "64920", "currency": null, "currency_source": null },
+  "stock": { "reported_total": "23", "selected_store_id": 24, "reported_store_quantity": "8", "sellable_quantity": null },
+  "warnings": [{ "code": "SPEC_CONFLICT", "field": "nominal_current", "claims": [
+    { "value": "160 А", "source": "name_and_description" },
+    { "value": "250 А", "source": "properties.NOMINALNYY_TOK" }
+  ] }],
+  "provenance": { "source": "user_snapshot", "fetched_at": null, "catalog_complete": false },
+  "cart_mode": "demo"
+}
+```
+
+## Ограничения
+
+Реальная корзина EKT заблокирована отсутствием контракта записи, связи с посетителем и гарантий идемпотентности. Не подтверждены единицы, продаваемые склады, валюта и правила цены EKT, условия доставки/оплаты, сертификаты, семантика `offers`/`RECOMMEND` и полнота каталога. Демо-корзина не резервирует товар. Live EKT не проверялся; Python HTTP-слой проверен локально, но требует согласования с ML-участником. Вложения, проверенные аналоги и полноценный AI-консультант остаются следующими этапами.

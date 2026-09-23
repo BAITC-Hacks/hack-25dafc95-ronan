@@ -11,6 +11,7 @@ export type Product = {
   stocks: { warehouse: string; quantity: number | null }[];
   specs: Record<string, string>;
   certificate: { name: string; url: string } | null;
+  canPurchase?: boolean;
 };
 export type Line = {
   productId: string;
