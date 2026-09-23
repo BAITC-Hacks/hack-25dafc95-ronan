@@ -10,28 +10,22 @@ from typing import Any, Mapping
 
 _TOKEN_RE = re.compile(r"[\w-]+", re.UNICODE)
 _AFFIRMATIVE_PHRASES = {
-    "yes",
-    "y",
-    "confirm",
-    "confirmed",
-    "i confirm",
     "да",
-    "подтверждаю",
-    "подтвердить",
-    "подтверждено",
+    "да, добавь",
+    "да, добавить",
+    "да, подтверждаю",
 }
 _NEGATIVE_TOKENS = {"no", "n", "not", "dont", "don't", "нет", "не", "отмена", "отменить"}
 
 
 def _is_explicit_confirmation(message: str) -> bool:
-    normalised = " ".join(_TOKEN_RE.findall(message.casefold()))
-    tokens = set(normalised.split())
+    normalised = message.casefold()
+    if normalised.endswith((".", "!")):
+        normalised = normalised[:-1]
+    tokens = set(_TOKEN_RE.findall(normalised))
     if not normalised or tokens & _NEGATIVE_TOKENS:
         return False
-    if normalised in _AFFIRMATIVE_PHRASES:
-        return True
-    # Allow a clear affirmative followed by the requested operation, e.g. "да, добавьте".
-    return normalised.startswith(("yes ", "confirm ", "да ", "подтверждаю ", "подтвердить "))
+    return normalised in _AFFIRMATIVE_PHRASES
 
 
 @dataclass(slots=True)
