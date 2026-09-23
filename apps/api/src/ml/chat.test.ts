@@ -9,6 +9,25 @@ const fixture = new FixtureCatalogProvider(fileURLToPath(new URL('../../../../sa
 const config = loadConfig({ CATALOG_MODE: 'fixture', CART_MODE: 'demo', AI_MODE: 'stub' });
 
 describe('chat and ml_core boundary', () => {
+  it('uses OpenAI only for wording and falls back without changing verified products', async () => {
+    const openaiConfig = loadConfig({ CATALOG_MODE: 'fixture', CART_MODE: 'demo', AI_MODE: 'openai',
+      OPENAI_API_KEY: 'test', OPENAI_MODEL: 'test-model' });
+    const llm = { answer: vi.fn(async () => 'Ответ внешней модели по переданным фактам.') };
+    const app = await buildApp(openaiConfig, fixture, { llm });
+    try {
+      const response = await app.inject({ method: 'POST', url: '/api/chat', payload: { message: '027228' } });
+      expect(response.json().llm_status).toBe('ok');
+      expect(response.json().answer).toBe('Ответ внешней модели по переданным фактам.');
+      expect(response.json().products[0].id).toBe(515291);
+      expect(llm.answer).toHaveBeenCalledOnce();
+      llm.answer.mockRejectedValueOnce(new Error('offline'));
+      const fallback = await app.inject({ method: 'POST', url: '/api/chat', payload: { message: '027228' } });
+      expect(fallback.json().llm_status).toBe('unavailable');
+      expect(fallback.json().answer).toContain('Найдено 1 товаров');
+      expect(fallback.json().products[0].id).toBe(515291);
+    } finally { await app.close(); }
+  });
+
   it('preserves exact articles and does not extract a brand as an identifier', () => {
     for (const article of ['027228', '200300285_', 'DEMO_001']) expect(fallbackQuery(`Найди ${article}`)).toBe(article);
     expect(fallbackQuery('Нужен автомат Legrand на 160 А')).toBe('Нужен автомат Legrand на 160 А');

@@ -11,11 +11,12 @@ import { CartError, type PgDemoCartStore } from './cart/store.js';
 import { registerCartRoutes } from './cart/routes.js';
 import { MlCoreClient } from './ml/client.js';
 import { catalogQueryMatch } from './ml/search.js';
+import type { LlmProvider } from './llm/provider.js';
 
 const idParams = z.object({ id: z.coerce.number().int().positive() });
 const searchQuery = z.object({ q: z.string().trim().min(1).max(100).optional() });
 
-export async function buildApp(config: Config, catalog: CatalogProvider, services: { cart?: PgDemoCartStore; ml?: MlCoreClient } = {}) {
+export async function buildApp(config: Config, catalog: CatalogProvider, services: { cart?: PgDemoCartStore; ml?: MlCoreClient; llm?: LlmProvider } = {}) {
   const app = Fastify({ logger: false }).withTypeProvider<ZodTypeProvider>();
   app.setValidatorCompiler(validatorCompiler);
   app.setSerializerCompiler(serializerCompiler);
@@ -74,6 +75,7 @@ export async function buildApp(config: Config, catalog: CatalogProvider, service
   }).strict();
   app.post('/api/chat', { schema: { body: chatBody, response: { 200: z.object({
     answer: z.string(), products: z.array(productResponse), ml_status: z.enum(['ok', 'unavailable', 'disabled']),
+    llm_status: z.enum(['ok', 'unavailable', 'disabled']),
     cart_mode: z.enum(['demo', 'ekt']), catalog_complete: z.literal(false),
   }) } } }, async (request) => {
     const page = await catalog.getPage(config.CATALOG_MODE === 'fixture' ? 2 : 1);
@@ -91,11 +93,20 @@ export async function buildApp(config: Config, catalog: CatalogProvider, service
       const detail = id === 515291 || record.source === 'synthetic' ? await catalog.getProduct(id) : null;
       return normalizeProduct(detail ?? record, config.CART_MODE);
     }));
-    return {
-      answer: products.length ? `Найдено ${products.length} товаров в просмотренной части каталога. Проверьте карточки, предупреждения и источник данных; инженерная совместимость не подтверждена.`
-        : 'В просмотренной части каталога нет подтверждённых совпадений по запросу. Данных может быть недостаточно; это не означает отсутствие товара в магазине.',
-      products, ml_status: ml.status, cart_mode: config.CART_MODE, catalog_complete: false as const,
-    };
+    const fallbackAnswer = products.length ? `Найдено ${products.length} товаров в просмотренной части каталога. Проверьте карточки, предупреждения и источник данных; инженерная совместимость не подтверждена.`
+      : 'В просмотренной части каталога нет подтверждённых совпадений по запросу. Данных может быть недостаточно; это не означает отсутствие товара в магазине.';
+    let answer = fallbackAnswer;
+    let llmStatus: 'ok' | 'unavailable' | 'disabled' = 'disabled';
+    if (config.AI_MODE === 'openai' && services.llm) {
+      try {
+        answer = await services.llm.answer({ message: request.body.message, products });
+        llmStatus = 'ok';
+      } catch {
+        llmStatus = 'unavailable';
+      }
+    }
+    return { answer, products, ml_status: ml.status, llm_status: llmStatus,
+      cart_mode: config.CART_MODE, catalog_complete: false as const };
   });
 
   await registerCartRoutes(app, config, services.cart);

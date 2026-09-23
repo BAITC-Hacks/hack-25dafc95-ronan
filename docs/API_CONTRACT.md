@@ -69,14 +69,17 @@ EKT неизвестны, только явно synthetic товар имеет 
 
 `POST /api/chat` принимает `{ "message": "Есть 027228 в Астане?", "locale": "ru" }`
 и необязательные `context` и пустой `attachment_ids`. Ответ: `answer`,
-`products` (карточки Node), `ml_status: ok|unavailable|disabled`, `cart_mode`,
+`products` (карточки Node), `ml_status: ok|unavailable|disabled`,
+`llm_status: ok|unavailable|disabled`, `cart_mode`,
 `catalog_complete: false`. Это read-only путь: он не создаёт предложение и не
 подтверждает корзину. Node вызывает Python по черновому контракту
 `docs/ML_CORE_CONTRACT.md`, если задан `ML_CORE_URL`; при сбое Python применяет
 локальный поиск. Локальный Python HTTP-адаптер реализован и проверен; командное
 согласование контракта с ML-участником остаётся открытым.
 
-Python возвращает рекомендации ранжирования, а Node повторно проверяет допустимость кандидатов по исходному сообщению и каталогу. Усечённая `query` Python не заменяет ограничения исходного запроса; fallback использует те же проверки. `ml_status=ok` означает успешный валидный HTTP-ответ локального Python с регулярными выражениями и строковым ранжированием, не работу LLM. Node поддерживает только `AI_MODE=stub`; `AI_MODE=openai` завершает запуск явной ошибкой `AI_MODE=openai is not implemented; use AI_MODE=stub`.
+Python возвращает рекомендации ранжирования, а Node повторно проверяет допустимость кандидатов по исходному сообщению и каталогу. Усечённая `query` Python не заменяет ограничения исходного запроса; fallback использует те же проверки. `ml_status=ok` означает успешный валидный HTTP-ответ локального Python с регулярными выражениями и строковым ранжированием, не работу LLM.
+
+При `AI_MODE=openai` Node после проверки товаров вызывает OpenAI Responses API с `OPENAI_API_KEY` и `OPENAI_MODEL` из серверного окружения. Модель формулирует только `answer`, получает нормализованные карточки и не имеет инструментов корзины. Массив `products` строит Node независимо. При таймауте или ошибке возвращается шаблонный ответ и `llm_status=unavailable`; при `stub` — `disabled`. Ключ не передаётся frontend или Python.
 
 Frontend API-режим вызывает `/api/products`, `/api/products/:id`, `/api/chat`,
 `/api/session`, `/api/cart`, proposal, confirm и cancel с cookie одного origin через Vite proxy.
