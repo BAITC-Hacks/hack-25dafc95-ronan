@@ -60,6 +60,7 @@ export interface DataSource {
   upload?(file: File): Promise<AttachmentResult>;
   propose(intent: Intent): Promise<Proposal>;
   commit(proposal: Proposal): Promise<MutationResult>;
+  cancel?(proposalId: string): Promise<void>;
   reconcile(operationId: string): Promise<Reconciliation>;
   reset?(): Promise<Cart>;
 }

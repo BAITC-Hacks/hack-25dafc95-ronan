@@ -4,9 +4,9 @@
   "version": "1.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite --host 127.0.0.1 --configLoader native",
+    "dev": "vite --host 127.0.0.1 --port 5173 --strictPort --configLoader native",
     "build": "tsc -b && vite build --configLoader native",
-    "preview": "vite preview --host 127.0.0.1 --configLoader native",
+    "preview": "vite preview --host 127.0.0.1 --port 5173 --strictPort --configLoader native",
     "test": "vitest run src --configLoader native",
     "test:e2e": "vite build --config vite.harness.config.ts --configLoader native && playwright test",
     "format": "prettier --write src e2e *.ts *.json *.md"

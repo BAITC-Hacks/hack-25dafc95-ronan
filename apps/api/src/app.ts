@@ -3,13 +3,14 @@ import swagger from '@fastify/swagger';
 import { ZodTypeProvider, jsonSchemaTransform, serializerCompiler, validatorCompiler } from '@fastify/type-provider-zod';
 import { z } from 'zod';
 import { CatalogError } from './catalog/errors.js';
-import { normalizeProduct, productMatches } from './catalog/normalize.js';
+import { normalizeProduct } from './catalog/normalize.js';
 import type { CatalogProvider, CatalogRecord } from './catalog/types.js';
 import type { Config } from './config.js';
 import { errorResponse, productResponse, searchResponse } from './schemas.js';
 import { CartError, type PgDemoCartStore } from './cart/store.js';
 import { registerCartRoutes } from './cart/routes.js';
-import { MlCoreClient, fallbackQuery } from './ml/client.js';
+import { MlCoreClient } from './ml/client.js';
+import { catalogQueryMatch } from './ml/search.js';
 
 const idParams = z.object({ id: z.coerce.number().int().positive() });
 const searchQuery = z.object({ q: z.string().trim().min(1).max(100).optional() });
@@ -49,7 +50,7 @@ export async function buildApp(config: Config, catalog: CatalogProvider, service
     const extras = await catalog.listExtras?.() ?? [];
     const candidates: CatalogRecord[] = page.items.map((raw) => detail && raw.id === detail.raw.id ? detail : { raw, source: page.source, fetchedAt: page.fetchedAt, detailAvailable: false });
     candidates.push(...extras);
-    const matches = candidates.map((record) => ({ record, result: request.query.q ? productMatches(record.raw, request.query.q) : { rank: 0, match: 'visible_page' as const } }))
+    const matches = candidates.map((record) => ({ record, result: request.query.q ? catalogQueryMatch(record, request.query.q) : { rank: 0, match: 'visible_page' as const } }))
       .filter((entry) => entry.result !== null)
       .sort((a, b) => (a.result?.rank ?? 99) - (b.result?.rank ?? 99));
     const items = matches.map(({ record, result }) => ({
@@ -77,13 +78,13 @@ export async function buildApp(config: Config, catalog: CatalogProvider, service
   }) } } }, async (request) => {
     const page = await catalog.getPage(config.CATALOG_MODE === 'fixture' ? 2 : 1);
     const extras = await catalog.listExtras?.() ?? [];
-    const records: CatalogRecord[] = page.items.map((raw) => ({ raw, source: page.source, fetchedAt: page.fetchedAt, detailAvailable: false }));
+    const conflictDetail = config.CATALOG_MODE === 'fixture' ? await catalog.getProduct(515291) : null;
+    const records: CatalogRecord[] = page.items.map((raw) => conflictDetail && raw.id === conflictDetail.raw.id ? conflictDetail : { raw, source: page.source, fetchedAt: page.fetchedAt, detailAvailable: false });
     records.push(...extras);
     const candidates = records.map((record) => ({ id: Number(record.raw.id), name: String(record.raw.name ?? ''), article: String(record.raw.article ?? '') }));
     const ml = await (services.ml ?? new MlCoreClient(config.ML_CORE_URL)).parseRank(request.body.message, candidates);
-    const query = ml.query ?? fallbackQuery(request.body.message);
     const ranked = new Map(ml.rankedIds.map((id, index) => [id, index]));
-    const matches = records.filter((record) => productMatches(record.raw, query) || ranked.has(Number(record.raw.id)))
+    const matches = records.filter((record) => catalogQueryMatch(record, request.body.message))
       .sort((a, b) => (ranked.get(Number(a.raw.id)) ?? 100) - (ranked.get(Number(b.raw.id)) ?? 100)).slice(0, 5);
     const products = await Promise.all(matches.map(async (record) => {
       const id = Number(record.raw.id);
@@ -91,8 +92,8 @@ export async function buildApp(config: Config, catalog: CatalogProvider, service
       return normalizeProduct(detail ?? record, config.CART_MODE);
     }));
     return {
-      answer: products.length ? `Найдено ${products.length} товаров в просмотренной части каталога. Проверьте карточки и источник данных.`
-        : 'В просмотренной части каталога совпадений нет; это не означает отсутствие товара в магазине.',
+      answer: products.length ? `Найдено ${products.length} товаров в просмотренной части каталога. Проверьте карточки, предупреждения и источник данных; инженерная совместимость не подтверждена.`
+        : 'В просмотренной части каталога нет подтверждённых совпадений по запросу. Данных может быть недостаточно; это не означает отсутствие товара в магазине.',
       products, ml_status: ml.status, cart_mode: config.CART_MODE, catalog_complete: false as const,
     };
   });

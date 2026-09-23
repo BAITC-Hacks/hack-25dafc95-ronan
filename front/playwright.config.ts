@@ -13,8 +13,7 @@ export default defineConfig({
     ? undefined
     : [
         {
-          command:
-            "node node_modules/vite/bin/vite.js preview --configLoader native --host 127.0.0.1 --port 5173 --strictPort",
+          command: "npm run preview",
           url: "http://127.0.0.1:5173",
           reuseExistingServer: true,
         },

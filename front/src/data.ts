@@ -40,6 +40,7 @@ const delay = () => new Promise((resolve) => setTimeout(resolve, 420));
 export function createDemoSource(): DataSource {
   let cart = restore();
   const results = new Map<string, MutationResult>();
+  const cancelled = new Set<string>();
   const save = () => {
     try {
       localStorage.setItem(storageKey, JSON.stringify(cart));
@@ -116,6 +117,7 @@ export function createDemoSource(): DataSource {
     },
     async commit(proposal) {
       await delay();
+      if (cancelled.has(proposal.id)) throw new Error("Предложение отменено.");
       const prior = results.get(proposal.id);
       if (prior) return prior;
       const p = catalog.find((p) => p.id === proposal.product.id)!;
@@ -124,6 +126,10 @@ export function createDemoSource(): DataSource {
       results.set(proposal.id, result);
       save();
       return result;
+    },
+    async cancel(id) {
+      if (results.has(id)) throw new Error("Предложение уже выполнено.");
+      cancelled.add(id);
     },
     async reconcile(id) {
       return {
@@ -134,6 +140,7 @@ export function createDemoSource(): DataSource {
     async reset() {
       cart = emptyCart();
       results.clear();
+      cancelled.clear();
       save();
       return cart;
     },

@@ -249,6 +249,24 @@ export function useAssistant(initialSource?: DataSource) {
       setBusy(false);
     }
   }
+  async function cancel() {
+    if (!proposal || proposal.status !== "active" || busyRef.current || uncertain) return;
+    busyRef.current = true;
+    setBusy(true);
+    setIssue("");
+    const current = proposal;
+    try {
+      if (!source.cancel) throw new Error("Отмена не подключена к сервису.");
+      await source.cancel(current.id);
+      setProposal({ ...current, status: "cancelled" });
+      setIssue("Предложение отменено. Корзина не изменилась.");
+    } catch (error) {
+      setIssue(`Не удалось подтвердить отмену: ${errorText(error)}`);
+    } finally {
+      busyRef.current = false;
+      setBusy(false);
+    }
+  }
   async function send(value = text, retryId?: string, retryFile?: File) {
     const attachment = retryId ? retryFile : file;
     const query = value.trim();
@@ -509,6 +527,7 @@ export function useAssistant(initialSource?: DataSource) {
     propose,
     reconcile,
     confirm,
+    cancel,
     send,
     selectFile,
     switchMode,

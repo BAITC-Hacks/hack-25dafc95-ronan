@@ -32,9 +32,7 @@ export function Assistant(controller: AssistantController) {
     mobileCart,
     setMobileCart,
     proposal,
-    setProposal,
     issue,
-    setIssue,
     uncertain,
     busy,
     busyRef,
@@ -59,6 +57,7 @@ export function Assistant(controller: AssistantController) {
     propose,
     reconcile,
     confirm,
+    cancel,
     send,
     selectFile,
     switchMode,
@@ -295,10 +294,7 @@ export function Assistant(controller: AssistantController) {
                 <button
                   className="secondary"
                   disabled={proposal.status !== "active" || locked}
-                  onClick={() => {
-                    setProposal({ ...proposal, status: "cancelled" });
-                    setIssue("Предложение отменено. Корзина не изменилась.");
-                  }}
+                  onClick={cancel}
                 >
                   Отмена
                 </button>

@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { identifierQuery } from './search.js';
 
 export interface MlCandidate { id: number; name: string; article: string }
 export interface MlResult { query: string | null; rankedIds: number[]; status: 'ok' | 'unavailable' | 'disabled' }
@@ -33,6 +34,5 @@ export class MlCoreClient {
 }
 
 export function fallbackQuery(message: string): string {
-  const identifier = message.match(/\b\d{4,}_?\b|\b[A-Za-z][A-Za-z0-9_]{3,}\b/);
-  return identifier?.[0] ?? message.trim().slice(0, 100);
+  return identifierQuery(message) ?? message.trim().slice(0, 100);
 }

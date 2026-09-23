@@ -45,6 +45,9 @@ function toProduct(raw: ApiProduct): Product {
     Источник: synthetic ? "Синтетические данные демо" : raw.provenance.source === "user_snapshot" ? "Снимок EKT, не текущие данные" : "Ответ EKT API",
   };
   if (raw.article) specs["Внутренний артикул"] = raw.article;
+  if (!synthetic && raw.price.amount !== null) {
+    specs["Опубликованная цена"] = `${raw.price.amount}; ${raw.price.currency || "валюта не указана"}`;
+  }
   if (raw.stock.reported_total !== null) specs["Опубликованный общий остаток"] = raw.stock.reported_total;
   if (!synthetic && raw.stock.reported_store_quantity !== null) specs[`Опубликовано: ${warehouse}`] = raw.stock.reported_store_quantity;
   if (raw.warnings.some((warning) => warning.code === "SPEC_CONFLICT")) {
@@ -61,13 +64,21 @@ function toProduct(raw: ApiProduct): Product {
   };
 }
 
+class ApiError extends Error {
+  constructor(message: string, readonly code: string | null, readonly status: number) {
+    super(message);
+    this.name = "ApiError";
+  }
+}
+
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const response = await fetch(path, { credentials: "same-origin", ...options });
   const body: unknown = await response.json().catch(() => null);
   if (!response.ok) {
     const error = body && typeof body === "object" && "error" in body ? body.error : null;
     const message = error && typeof error === "object" && "message" in error ? String(error.message) : `API: HTTP ${response.status}`;
-    throw new Error(message);
+    const code = error && typeof error === "object" && "code" in error ? String(error.code) : null;
+    throw new ApiError(message, code, response.status);
   }
   return body as T;
 }
@@ -83,7 +94,25 @@ export function createApiSource(): DataSource {
     }).then((session) => { csrf = session.csrf_token; }).catch((error) => { bootstrap = null; throw error; });
     return bootstrap;
   };
-  const mutationHeaders = () => ({ "content-type": "application/json", "x-csrf-token": csrf });
+  const mutate = async <T>(path: string, body: string, idempotencyKey?: string): Promise<T> => {
+    await ensureSession();
+    const send = () => request<T>(path, {
+      method: "POST", body,
+      headers: {
+        "content-type": "application/json", "x-csrf-token": csrf,
+        ...(idempotencyKey ? { "idempotency-key": idempotencyKey } : {}),
+      },
+    });
+    try { return await send(); }
+    catch (error) {
+      if (!(error instanceof ApiError) || error.code !== "CSRF_INVALID") throw error;
+      // Another tab can rotate the shared session token. Only a CSRF rejection
+      // permits one retry; the operation body and confirm key stay unchanged.
+      bootstrap = null;
+      await ensureSession();
+      return send();
+    }
+  };
   const remember = (raw: ApiProduct) => { productMap.set(String(raw.id), raw); return toProduct(raw); };
   const mapCart = (raw: ApiCart): Cart => {
     const cart = { revision: raw.version, lines: raw.items.map((line) => ({
@@ -130,11 +159,9 @@ export function createApiSource(): DataSource {
         throw new Error("Для этого товара нет подтверждённых демо-правил покупки.");
       }
       if (!Number.isSafeInteger(intent.quantity) || intent.quantity <= 0) throw new Error("Укажите целое положительное количество.");
-      const response = await request<ApiProposal>("/api/cart/proposals", {
-        method: "POST", headers: mutationHeaders(), body: JSON.stringify({
+      const response = await mutate<ApiProposal>("/api/cart/proposals", JSON.stringify({
           items: [{ product_id: raw.id, store_id: raw.stock.selected_store_id, quantity: String(intent.quantity) }],
-        }),
-      });
+        }));
       const product = toProduct(raw);
       const before = currentCart.lines.find((line) => line.productId === intent.productId && line.warehouse === intent.warehouse)?.quantity ?? 0;
       return { id: response.proposal_id, intent, product, before, after: before + intent.quantity,
@@ -143,12 +170,12 @@ export function createApiSource(): DataSource {
         revision: response.cart_version, status: "active" };
     },
     async commit(proposal) {
-      await ensureSession();
-      const result = await request<{ cart: ApiCart }>(`/api/cart/proposals/${proposal.id}/confirm`, {
-        method: "POST", headers: { ...mutationHeaders(), "idempotency-key": proposal.id },
-        body: JSON.stringify({ proposal_version: 1 }),
-      });
+      const result = await mutate<{ cart: ApiCart }>(`/api/cart/proposals/${proposal.id}/confirm`,
+        JSON.stringify({ proposal_version: 1 }), proposal.id);
       return { kind: "applied", cart: mapCart(result.cart) };
+    },
+    async cancel(proposalId) {
+      await mutate(`/api/cart/proposals/${proposalId}/cancel`, "{}");
     },
     async reconcile(proposalId) {
       await ensureSession();

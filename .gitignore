@@ -5,6 +5,7 @@ dist/
 !.env.example
 coverage/
 .tools/
+.venv/
 .source/
 node-v*-win-x64.zip
 __pycache__/

@@ -14,8 +14,24 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from .catalog import _search_score
 from .models import Product
 
-_IDENTIFIER = re.compile(r"(?<![\w])(?:\d{4,}_?|[A-Za-z][A-Za-z0-9_]{3,})(?![\w])")
+_IDENTIFIER = re.compile(r"(?<!\w)(?:\d{4,}_?|[A-Za-z][A-Za-z0-9]*_[A-Za-z0-9_]+)(?!\w)")
+_CURRENT = re.compile(r"(?<!\w)(\d+(?:[.,]\d+)?)\s*[аa](?!\w)", re.IGNORECASE)
+_KINDS = tuple(re.compile(pattern, re.IGNORECASE) for pattern in (
+    r"автомат[а-яё]*|(?<!\w)ав(?!\w)", r"реле", r"контактор[а-яё]*", r"кабел[а-яё]*", r"ламп[а-яё]*",
+))
 _MAX_BODY = 65536
+
+
+def _eligible(message: str, name: str) -> bool:
+    requested_kind = next((kind for kind in _KINDS if kind.search(message)), None)
+    if requested_kind and not requested_kind.search(name):
+        return False
+    requested = {float(value.replace(",", ".")) for value in _CURRENT.findall(message)}
+    if requested:
+        known = {float(value.replace(",", ".")) for value in _CURRENT.findall(name)}
+        if len(requested) != 1 or known != requested:
+            return False
+    return True
 
 
 def parse_rank(payload: object) -> dict[str, object]:
@@ -39,6 +55,14 @@ def parse_rank(payload: object) -> dict[str, object]:
                 or len(name) > 1000 or len(article) > 100):
             raise ValueError("Invalid candidate")
         seen.add(identifier)
+        if match:
+            # Exact identifiers keep leading zeroes and underscores, and must not
+            # degrade to approximate electrical matches.
+            identifier_token = re.compile(r"(?<!\w)" + re.escape(query) + r"(?!\w)", re.IGNORECASE)
+            if query.casefold() not in {str(identifier), article.casefold()} and not identifier_token.search(name):
+                continue
+        elif not _eligible(message, name):
+            continue
         score = _search_score(query, Product(sku=str(identifier), name=f"{name} {article}"))
         if score >= 0.22:
             ranked.append((identifier, score))
