@@ -22,6 +22,13 @@ test("API session: search, card, proposal, confirm, and same cart after reload",
   await expect(page.locator(".cart-column .count")).toHaveText("0");
   const before = await page.evaluate(() => fetch("/api/cart").then((response) => response.json()));
   expect(before.items).toHaveLength(0);
+  await input.fill("да");
+  await Promise.all([
+    page.waitForResponse((response) => response.url().endsWith("/api/chat") && response.status() === 200),
+    input.press("Enter"),
+  ]);
+  const afterBareYes = await page.evaluate(() => fetch("/api/cart").then((response) => response.json()));
+  expect(afterBareYes.items).toHaveLength(0);
   await page.getByRole("button", { name: "Да, добавить" }).click();
   await expect(page.locator(".cart-column .count")).toHaveText("1");
   const nodeCartPage = await page.request.get("http://127.0.0.1:8000/cart");

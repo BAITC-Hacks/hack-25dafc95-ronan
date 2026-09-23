@@ -85,7 +85,7 @@ export function applyConfirmed(
   return { kind: "applied", cart: { revision: cart.revision + 1, lines } };
 }
 export function exactConsent(text: string): boolean {
-  return /^(да|да,? добавь|да,? добавить|да,? подтверждаю)[.!]?$/iu.test(
+  return /^(да, добавь|да, добавить|да, подтверждаю)[.!]?$/iu.test(
     text.trim(),
   );
 }

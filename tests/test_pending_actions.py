@@ -6,12 +6,11 @@ from ml_core.pending_actions import PendingAction
 @pytest.mark.parametrize(
     "message",
     [
-        "да",
-        "ДА!",
         "да, добавь.",
         "ДА, ДОБАВИТЬ",
         "да, добавить!",
         "Да, Подтверждаю.",
+        "  Да, добавь!  ",
     ],
 )
 def test_confirm_returns_action_for_exact_frontend_confirmation(message: str) -> None:
@@ -35,7 +34,7 @@ def test_non_confirmation_clears_pending_action() -> None:
     assert gate.confirm("session-2") is None
 
 
-@pytest.mark.parametrize("message", ["yes", "подтверждаю", "да, добавьте", "да, добавь!!"])
+@pytest.mark.parametrize("message", ["yes", "да", "ДА!", "да добавь", "подтверждаю", "да, добавьте", "да, добавь!!", "да, добавь?"])
 def test_non_frontend_confirmation_phrase_is_rejected(message: str) -> None:
     gate = PendingAction()
     gate.propose("session-3", {"action": "add_to_cart", "sku": "A-16", "qty": 1})

@@ -1,30 +1,23 @@
-"""Server-side confirmation gate for state-changing chat actions."""
+"""Optional in-process chat confirmation gate; Node owns demo-cart mutations."""
 
 from __future__ import annotations
 
 import copy
-import re
 import threading
 from dataclasses import dataclass
 from typing import Any, Mapping
 
-_TOKEN_RE = re.compile(r"[\w-]+", re.UNICODE)
 _AFFIRMATIVE_PHRASES = {
-    "да",
     "да, добавь",
     "да, добавить",
     "да, подтверждаю",
 }
-_NEGATIVE_TOKENS = {"no", "n", "not", "dont", "don't", "нет", "не", "отмена", "отменить"}
 
 
 def _is_explicit_confirmation(message: str) -> bool:
-    normalised = message.casefold()
+    normalised = message.strip().casefold()
     if normalised.endswith((".", "!")):
         normalised = normalised[:-1]
-    tokens = set(_TOKEN_RE.findall(normalised))
-    if not normalised or tokens & _NEGATIVE_TOKENS:
-        return False
     return normalised in _AFFIRMATIVE_PHRASES
 
 

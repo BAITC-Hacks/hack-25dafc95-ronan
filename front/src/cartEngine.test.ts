@@ -90,10 +90,13 @@ describe("explicit cart consent", () => {
       "давай аналоги",
       "не надо, да",
       "да добавь и удали кабель",
+      "да",
+      "да добавь",
       "когда",
     ])
       expect(exactConsent(s)).toBe(false);
     expect(exactConsent("Да, добавь!")).toBe(true);
+    expect(exactConsent("  Да, подтверждаю.  ")).toBe(true);
   });
   it("unknown price and stock block proposals", () => {
     expect(() =>
